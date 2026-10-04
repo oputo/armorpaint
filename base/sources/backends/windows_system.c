@@ -12,6 +12,90 @@
 #include <shlobj.h>
 #include <stdio.h>
 
+#ifdef WITH_SPACEMOUSE
+#include "spacemouse_report.h"
+
+static HANDLE spacemouse_device = NULL;
+static iron_spacemouse_state_t spacemouse_state = {0};
+static ULONGLONG spacemouse_translation_time = 0;
+static ULONGLONG spacemouse_rotation_time = 0;
+
+static void spacemouse_clear(void) {
+	spacemouse_device = NULL;
+	spacemouse_state = (iron_spacemouse_state_t){0};
+	spacemouse_translation_time = 0;
+	spacemouse_rotation_time = 0;
+}
+
+static bool spacemouse_is_device(HANDLE device) {
+	RID_DEVICE_INFO info = {0};
+	UINT size = sizeof(info);
+	info.cbSize = sizeof(info);
+	if (GetRawInputDeviceInfoW(device, RIDI_DEVICEINFO, &info, &size) == (UINT)-1 || info.dwType != RIM_TYPEHID) {
+		return false;
+	}
+	return info.hid.usUsagePage == 1 && info.hid.usUsage == 8 &&
+	       (info.hid.dwVendorId == 0x256f || info.hid.dwVendorId == 0x046d);
+}
+
+static void spacemouse_handle_input(LPARAM lparam) {
+	UINT size = 0;
+	if (GetRawInputData((HRAWINPUT)lparam, RID_INPUT, NULL, &size, sizeof(RAWINPUTHEADER)) != 0 ||
+	    size < offsetof(RAWINPUT, data.hid.bRawData) || size > 1024) {
+		return;
+	}
+	union { RAWINPUT aligned; BYTE bytes[1024]; } storage;
+	if (GetRawInputData((HRAWINPUT)lparam, RID_INPUT, storage.bytes, &size, sizeof(RAWINPUTHEADER)) == (UINT)-1) {
+		return;
+	}
+	RAWINPUT *input = &storage.aligned;
+	if (input->header.dwType != RIM_TYPEHID ||
+	    (spacemouse_device != NULL && input->header.hDevice != spacemouse_device)) {
+		return;
+	}
+	if (spacemouse_device == NULL) {
+		if (!spacemouse_is_device(input->header.hDevice)) {
+			return;
+		}
+		spacemouse_device = input->header.hDevice;
+	}
+	if (size < offsetof(RAWINPUT, data.hid.bRawData) || input->data.hid.dwSizeHid == 0 ||
+	    input->data.hid.dwCount > (size - offsetof(RAWINPUT, data.hid.bRawData)) / input->data.hid.dwSizeHid) {
+		return;
+	}
+	for (DWORD i = 0; i < input->data.hid.dwCount; ++i) {
+		const uint8_t *report = input->data.hid.bRawData + i * input->data.hid.dwSizeHid;
+		spacemouse_report_t decoded;
+		if (!spacemouse_report_decode(report, input->data.hid.dwSizeHid, &decoded)) {
+			continue;
+		}
+		if (decoded.has_translation) {
+			memcpy(spacemouse_state.translation, decoded.translation, sizeof(decoded.translation));
+			spacemouse_translation_time = GetTickCount64();
+		}
+		if (decoded.has_rotation) {
+			memcpy(spacemouse_state.rotation, decoded.rotation, sizeof(decoded.rotation));
+			spacemouse_rotation_time = GetTickCount64();
+		}
+	}
+}
+
+bool iron_spacemouse_get_state(iron_spacemouse_state_t *out) {
+	*out = (iron_spacemouse_state_t){0};
+	if (spacemouse_device == NULL) {
+		return false;
+	}
+	ULONGLONG now = GetTickCount64();
+	if (spacemouse_translation_time != 0 && now - spacemouse_translation_time < 200) {
+		memcpy(out->translation, spacemouse_state.translation, sizeof(out->translation));
+	}
+	if (spacemouse_rotation_time != 0 && now - spacemouse_rotation_time < 200) {
+		memcpy(out->rotation, spacemouse_state.rotation, sizeof(out->rotation));
+	}
+	return true;
+}
+#endif
+
 void iron_microsoft_format(const char *format, va_list args, wchar_t *buffer) {
 	char cbuffer[4096];
 	vsprintf(cbuffer, format, args);
@@ -452,6 +536,9 @@ LRESULT WINAPI IronWindowsMessageProcedure(HWND hWnd, UINT msg, WPARAM wParam, L
 			iron_internal_foreground_callback();
 		}
 		else {
+#ifdef WITH_SPACEMOUSE
+			spacemouse_clear();
+#endif
 			iron_internal_mouse_window_deactivated();
 			iron_internal_background_callback();
 #ifdef HANDLE_ALT_ENTER
@@ -712,6 +799,16 @@ LRESULT WINAPI IronWindowsMessageProcedure(HWND hWnd, UINT msg, WPARAM wParam, L
 			break;
 		}
 		break;
+#ifdef WITH_SPACEMOUSE
+	case WM_INPUT:
+		spacemouse_handle_input(lParam);
+		break;
+	case WM_INPUT_DEVICE_CHANGE:
+		if (wParam == GIDC_REMOVAL && (HANDLE)lParam == spacemouse_device) {
+			spacemouse_clear();
+		}
+		break;
+#endif
 	case WM_DEVICECHANGE:
 #ifdef WITH_GAMEPAD
 		detectGamepad = true;
@@ -1085,6 +1182,12 @@ static void createWindow(const wchar_t *title, int x, int y, int width, int heig
 	DragAcceptFiles(hwnd, true);
 
 	windows[0].handle        = hwnd;
+#ifdef WITH_SPACEMOUSE
+	RAWINPUTDEVICE spacemouse_registration = {1, 8, RIDEV_DEVNOTIFY, hwnd};
+	if (!RegisterRawInputDevices(&spacemouse_registration, 1, sizeof(spacemouse_registration))) {
+		iron_log("SpaceMouse Raw Input registration failed: %lu", GetLastError());
+	}
+#endif
 	windows[0].x             = dstx;
 	windows[0].y             = dsty;
 	windows[0].mode          = windowMode;
@@ -1173,6 +1276,9 @@ iron_window_mode_t iron_window_get_mode() {
 }
 
 void iron_window_destroy() {
+#ifdef WITH_SPACEMOUSE
+	spacemouse_clear();
+#endif
 	WindowData *win = &windows[0];
 	if (win->handle != NULL) {
 		DestroyWindow(win->handle);

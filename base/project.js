@@ -30,6 +30,7 @@ if (platform == "windows") {
 	project.add_define("_CRT_SECURE_NO_WARNINGS");
 	project.add_define("_WINSOCK_DEPRECATED_NO_WARNINGS");
 	project.add_define("IRON_DIRECT3D12");
+	project.add_define("WITH_SPACEMOUSE");
 	project.add_lib("dxguid");
 	project.add_lib("Winhttp");
 	project.add_lib("dxgi");

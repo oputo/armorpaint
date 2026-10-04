@@ -151,6 +151,26 @@ typedef struct config {
 	bool                 view2d_grid_show;
 	i32                  view2d_grid_cell;
 	bool                 view2d_grid_snap;
+	bool                 spacemouse_enabled;
+	f32                  spacemouse_sensitivity;
+	bool                 spacemouse_x_enabled;
+	bool                 spacemouse_x_invert;
+	f32                  spacemouse_x_speed;
+	bool                 spacemouse_y_enabled;
+	bool                 spacemouse_y_invert;
+	f32                  spacemouse_y_speed;
+	bool                 spacemouse_z_enabled;
+	bool                 spacemouse_z_invert;
+	f32                  spacemouse_z_speed;
+	bool                 spacemouse_rx_enabled;
+	bool                 spacemouse_rx_invert;
+	f32                  spacemouse_rx_speed;
+	bool                 spacemouse_ry_enabled;
+	bool                 spacemouse_ry_invert;
+	f32                  spacemouse_ry_speed;
+	bool                 spacemouse_rz_enabled;
+	bool                 spacemouse_rz_invert;
+	f32                  spacemouse_rz_speed;
 } config_t;
 
 typedef struct slot_material {

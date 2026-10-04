@@ -525,6 +525,46 @@ void box_preferences_camera_tab() {
 	ui_handle_t *h_upside_down   = ui_handle(__ID__);
 	h_upside_down->b             = g_config->camera_upside_down;
 	g_config->camera_upside_down = ui_check(h_upside_down, tr("Allow Upside Down Camera"), "");
+
+#if defined(IRON_WINDOWS) && defined(WITH_SPACEMOUSE)
+	ui_handle_t *h_spacemouse = ui_handle(__ID__);
+	h_spacemouse->b = g_config->spacemouse_enabled;
+	g_config->spacemouse_enabled = ui_check(h_spacemouse, tr("SpaceMouse Navigation"), "");
+	ui_handle_t *h_spacemouse_sensitivity = ui_handle(__ID__);
+	h_spacemouse_sensitivity->f = g_config->spacemouse_sensitivity;
+	g_config->spacemouse_sensitivity =
+	    ui_slider(h_spacemouse_sensitivity, tr("SpaceMouse Sensitivity"), 0.1, 4.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+
+	char *axis_labels[6] = {tr("X: Pan Left/Right"), tr("Y: Pan Up/Down"), tr("Z: Dolly Forward/Back"),
+	                        tr("Rx: Pitch"), tr("Ry: Roll"), tr("Rz: Yaw")};
+	bool *axis_enabled[6] = {&g_config->spacemouse_x_enabled, &g_config->spacemouse_y_enabled, &g_config->spacemouse_z_enabled,
+	                         &g_config->spacemouse_rx_enabled, &g_config->spacemouse_ry_enabled, &g_config->spacemouse_rz_enabled};
+	bool *axis_invert[6] = {&g_config->spacemouse_x_invert, &g_config->spacemouse_y_invert, &g_config->spacemouse_z_invert,
+	                        &g_config->spacemouse_rx_invert, &g_config->spacemouse_ry_invert, &g_config->spacemouse_rz_invert};
+	f32 *axis_speed[6] = {&g_config->spacemouse_x_speed, &g_config->spacemouse_y_speed, &g_config->spacemouse_z_speed,
+	                      &g_config->spacemouse_rx_speed, &g_config->spacemouse_ry_speed, &g_config->spacemouse_rz_speed};
+	ui_text(tr("SpaceMouse Axes"), UI_ALIGN_LEFT, 0x00000000);
+	ui_row(f32_array_create_from_raw_tmp((f32[]){0.34f, 0.11f, 0.39f, 0.16f}, 4));
+	ui_text(tr("Axis"), UI_ALIGN_LEFT, 0x00000000);
+	ui_text(tr("On"), UI_ALIGN_CENTER, 0x00000000);
+	ui_text(tr("Speed"), UI_ALIGN_CENTER, 0x00000000);
+	ui_text(tr("Reverse"), UI_ALIGN_CENTER, 0x00000000);
+	ui_handle_t *h_axes = ui_handle(__ID__);
+	for (i32 i = 0; i < 6; ++i) {
+		ui_handle_t *h_axis = ui_nest(h_axes, i);
+		ui_row(f32_array_create_from_raw_tmp((f32[]){0.34f, 0.11f, 0.39f, 0.16f}, 4));
+		ui_text(axis_labels[i], UI_ALIGN_LEFT, 0x00000000);
+		ui_handle_t *h_enabled = ui_nest(h_axis, 0);
+		h_enabled->b = *axis_enabled[i];
+		*axis_enabled[i] = ui_check(h_enabled, "", "");
+		ui_handle_t *h_speed = ui_nest(h_axis, 1);
+		h_speed->f = *axis_speed[i];
+		*axis_speed[i] = ui_slider(h_speed, "", 0.1, 4.0, true, 100.0, true, UI_ALIGN_CENTER, true);
+		ui_handle_t *h_invert = ui_nest(h_axis, 2);
+		h_invert->b = *axis_invert[i];
+		*axis_invert[i] = ui_check(h_invert, "", "");
+	}
+#endif
 }
 
 // ██████╗ ███████╗███╗   ██╗

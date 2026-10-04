@@ -83,6 +83,16 @@ iron_window_mode_t iron_window_get_mode();
 void               iron_window_show();
 void               iron_window_hide();
 void               iron_window_set_title(const char *title);
+
+#if defined(IRON_WINDOWS) && defined(WITH_SPACEMOUSE)
+typedef struct iron_spacemouse_state {
+	float translation[3];
+	float rotation[3];
+} iron_spacemouse_state_t;
+
+// Return the latest motion, with stale axes zeroed after input stops.
+bool iron_spacemouse_get_state(iron_spacemouse_state_t *out);
+#endif
 void               iron_window_set_resize_callback(void (*callback)(int x, int y, void *data), void *data);
 void               iron_window_set_close_callback(bool (*callback)(void *data), void *data);
 void               iron_internal_call_resize_callback(int width, int height);

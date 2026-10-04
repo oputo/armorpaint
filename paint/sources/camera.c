@@ -295,7 +295,87 @@ void camera_set_pivot_center_to_mouse() {
 	camera_object_build_mat(camera);
 }
 
+#if defined(IRON_WINDOWS) && defined(WITH_SPACEMOUSE)
+static f32 camera_spacemouse_axis(f32 axis) {
+	const f32 deadzone = 0.06f;
+	if (math_abs(axis) <= deadzone) {
+		return 0.0f;
+	}
+	return (axis > 0.0f ? axis - deadzone : axis + deadzone) / (1.0f - deadzone);
+}
+
+static f32 camera_spacemouse_setting(f32 raw, bool enabled, bool invert, f32 speed) {
+	return enabled ? camera_spacemouse_axis(raw) * speed * (invert ? -1.0f : 1.0f) : 0.0f;
+}
+
+static void camera_spacemouse_update() {
+	if (!g_config->spacemouse_enabled || g_config->workspace != WORKSPACE_PAINT_3D ||
+	    g_context->camera_controls == CAMERA_CONTROLS_NONE || _input_occupied || !base_ui_enabled ||
+	    base_is_dragging || g_ui->is_scrolling || g_ui->combo_selected_handle != NULL || ui_menu_show ||
+	    mouse_down("left") || mouse_down("middle") || mouse_down("right")) {
+		return;
+	}
+
+	iron_spacemouse_state_t state;
+	if (!iron_spacemouse_get_state(&state)) {
+		return;
+	}
+	f32 tx = camera_spacemouse_setting(state.translation[0], g_config->spacemouse_x_enabled,
+	                                       g_config->spacemouse_x_invert, g_config->spacemouse_x_speed);
+	f32 ty = camera_spacemouse_setting(state.translation[1], g_config->spacemouse_y_enabled,
+	                                       g_config->spacemouse_y_invert, g_config->spacemouse_y_speed);
+	f32 tz = camera_spacemouse_setting(state.translation[2], g_config->spacemouse_z_enabled,
+	                                       g_config->spacemouse_z_invert, g_config->spacemouse_z_speed);
+	f32 rx = camera_spacemouse_setting(state.rotation[0], g_config->spacemouse_rx_enabled,
+	                                       g_config->spacemouse_rx_invert, g_config->spacemouse_rx_speed);
+	f32 ry = camera_spacemouse_setting(state.rotation[1], g_config->spacemouse_ry_enabled,
+	                                       g_config->spacemouse_ry_invert, g_config->spacemouse_ry_speed);
+	f32 rz = camera_spacemouse_setting(state.rotation[2], g_config->spacemouse_rz_enabled,
+	                                       g_config->spacemouse_rz_invert, g_config->spacemouse_rz_speed);
+	if (tx == 0.0f && ty == 0.0f && tz == 0.0f && rx == 0.0f && ry == 0.0f && rz == 0.0f) {
+		return;
+	}
+
+	f32 dt = sys_delta();
+	if (dt > 0.05f) dt = 0.05f;
+	if (dt <= 0.0f) return;
+	f32 sensitivity = g_config->spacemouse_sensitivity;
+	f32 distance = camera_distance();
+	if (distance < 0.1f) distance = 0.1f;
+	camera_object_t *camera = scene_camera;
+	transform_t *transform = camera->base->transform;
+	f32 pan = dt * sensitivity * g_config->camera_pan_speed * distance;
+	f32 dolly = dt * sensitivity * g_config->camera_zoom_speed * distance;
+	f32 orbit = dt * sensitivity * g_config->camera_rotation_speed * 2.0f;
+	// Device Y pans vertically; device Z moves toward or away from the model.
+	vec4_t shift = vec4_add(vec4_mult(camera_object_right_world(camera), tx * pan),
+	                        vec4_mult(camera_object_up_world(camera), -ty * pan));
+	transform->loc = vec4_add(transform->loc, shift);
+	camera_origins[camera_index()] = vec4_add(camera_origins[camera_index()], shift);
+	transform_build_matrix(transform);
+	f32 forward = -tz * dolly;
+	if (forward > distance - 0.05f) forward = distance - 0.05f;
+	transform_move(transform, camera_object_look_world(camera), forward);
+	if (rx != 0.0f || rz != 0.0f) {
+		viewport_orbit(-rz * orbit, -rx * orbit);
+	}
+	if (ry != 0.0f) {
+		transform_rotate(transform, camera_object_look_world(camera), ry * orbit);
+	}
+	camera_object_build_mat(camera);
+	if (g_context->camera_type == CAMERA_TYPE_ORTHOGRAPHIC) {
+		viewport_update_camera_type(g_context->camera_type);
+	}
+	camera_redraws = 2;
+	g_context->ddirty = 2;
+	iron_delay_idle_sleep();
+}
+#endif
+
 void camera_update(void *_) {
+#if defined(IRON_WINDOWS) && defined(WITH_SPACEMOUSE)
+	camera_spacemouse_update();
+#endif
 	if (!camera_wrap_mouse() || g_context->camera_controls == CAMERA_CONTROLS_NONE) {
 		return;
 	}

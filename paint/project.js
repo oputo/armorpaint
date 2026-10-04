@@ -29,6 +29,7 @@ if (platform == "wasm") {
 
 let project = new Project(flags.name);
 project.add_project("../base");
+if (platform == "windows") project.add_define("WITH_SPACEMOUSE");
 project.add_cfiles("sources/startup.c");
 project.add_cfiles("sources/minic_api.c");
 project.add_cfiles("sources/main.c");

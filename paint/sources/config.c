@@ -8,6 +8,22 @@ typedef struct version {
 
 bool config_loaded = false;
 
+// New settings are appended because the JSON decoder uses field order.
+static void config_spacemouse_axes_defaults(config_t *config) {
+	config->spacemouse_x_enabled = true;
+	config->spacemouse_x_speed = 1.0f;
+	config->spacemouse_y_enabled = true;
+	config->spacemouse_y_speed = 1.0f;
+	config->spacemouse_z_enabled = true;
+	config->spacemouse_z_speed = 1.0f;
+	config->spacemouse_rx_enabled = true;
+	config->spacemouse_rx_speed = 1.0f;
+	config->spacemouse_ry_enabled = true;
+	config->spacemouse_ry_speed = 1.0f;
+	config->spacemouse_rz_enabled = true;
+	config->spacemouse_rz_speed = 1.0f;
+}
+
 void config_load() {
 	char *path = "";
 	if (path_is_protected()) {
@@ -35,6 +51,13 @@ void config_load() {
 		if (starts_with(config_string, "{\"version\":")) { // Ensure valid config
 			config_loaded = true;
 			g_config      = json_parse(config_string);
+			if (strstr(config_string, "\"spacemouse_enabled\"") == NULL) {
+				g_config->spacemouse_enabled = true;
+				g_config->spacemouse_sensitivity = 1.0f;
+			}
+			if (strstr(config_string, "\"spacemouse_x_enabled\"") == NULL) {
+				config_spacemouse_axes_defaults(g_config);
+			}
 		}
 		free(config_string);
 	}
@@ -138,6 +161,26 @@ void config_save() {
 	json_encode_bool("view2d_grid_show", g_config->view2d_grid_show);
 	json_encode_i32("view2d_grid_cell", g_config->view2d_grid_cell);
 	json_encode_bool("view2d_grid_snap", g_config->view2d_grid_snap);
+	json_encode_bool("spacemouse_enabled", g_config->spacemouse_enabled);
+	json_encode_f32("spacemouse_sensitivity", g_config->spacemouse_sensitivity);
+	json_encode_bool("spacemouse_x_enabled", g_config->spacemouse_x_enabled);
+	json_encode_bool("spacemouse_x_invert", g_config->spacemouse_x_invert);
+	json_encode_f32("spacemouse_x_speed", g_config->spacemouse_x_speed);
+	json_encode_bool("spacemouse_y_enabled", g_config->spacemouse_y_enabled);
+	json_encode_bool("spacemouse_y_invert", g_config->spacemouse_y_invert);
+	json_encode_f32("spacemouse_y_speed", g_config->spacemouse_y_speed);
+	json_encode_bool("spacemouse_z_enabled", g_config->spacemouse_z_enabled);
+	json_encode_bool("spacemouse_z_invert", g_config->spacemouse_z_invert);
+	json_encode_f32("spacemouse_z_speed", g_config->spacemouse_z_speed);
+	json_encode_bool("spacemouse_rx_enabled", g_config->spacemouse_rx_enabled);
+	json_encode_bool("spacemouse_rx_invert", g_config->spacemouse_rx_invert);
+	json_encode_f32("spacemouse_rx_speed", g_config->spacemouse_rx_speed);
+	json_encode_bool("spacemouse_ry_enabled", g_config->spacemouse_ry_enabled);
+	json_encode_bool("spacemouse_ry_invert", g_config->spacemouse_ry_invert);
+	json_encode_f32("spacemouse_ry_speed", g_config->spacemouse_ry_speed);
+	json_encode_bool("spacemouse_rz_enabled", g_config->spacemouse_rz_enabled);
+	json_encode_bool("spacemouse_rz_invert", g_config->spacemouse_rz_invert);
+	json_encode_f32("spacemouse_rz_speed", g_config->spacemouse_rz_speed);
 	char *config_json = json_encode_end();
 
 	buffer_t *buffer = sys_string_to_buffer(config_json);
@@ -225,6 +268,9 @@ void config_init() {
 		g_config->camera_rotation_speed = 1.0;
 #endif
 		g_config->camera_upside_down = false;
+		g_config->spacemouse_enabled = true;
+		g_config->spacemouse_sensitivity = 1.0f;
+		config_spacemouse_axes_defaults(g_config);
 		g_config->zoom_direction     = ZOOM_DIRECTION_VERTICAL;
 		g_config->wrap_mouse         = false;
 		g_config->camera_pivot       = CAMERA_PIVOT_CENTER;
@@ -385,6 +431,13 @@ void config_import_from(config_t *from) {
 	char *_sha        = g_config->sha;
 	char *_version    = g_config->version;
 	g_config          = from;
+	if (g_config->spacemouse_sensitivity <= 0.0f) { // Presets created before SpaceMouse support
+		g_config->spacemouse_enabled = true;
+		g_config->spacemouse_sensitivity = 1.0f;
+	}
+	if (g_config->spacemouse_x_speed <= 0.0f) { // Presets created before per-axis settings
+		config_spacemouse_axes_defaults(g_config);
+	}
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
 	ui_children       = any_map_create(); // Reset ui handles
